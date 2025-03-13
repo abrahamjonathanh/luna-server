@@ -38,6 +38,8 @@ DB_HOST = str(os.getenv("DB_HOST"))
 DB_PORT = str(os.getenv("DB_PORT"))
 DB_SCHEMA = str(os.getenv('DB_SCHEMA'))
 
+# IPINFO_TOKEN = str(os.getenv("IPINFO_TOKEN"))
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -58,6 +60,10 @@ INSTALLED_APPS = [
     'template'
 ]
 
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'template.exceptions.custom_exception.custom_exception_handler',
+}
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -67,6 +73,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'template.middlewares.request_log_middleware.RequestLogMiddleware'
 ]
 
 ROOT_URLCONF = 'luna.urls'
@@ -151,3 +158,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS
 CORS_ORIGIN_ALLOW_ALL = True
+
+# GEOIP2
+GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
