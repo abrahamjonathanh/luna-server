@@ -1,0 +1,1 @@
+from .setup_celery_beat import Command as SetupCeleryBeatCommand

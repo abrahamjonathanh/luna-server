@@ -1,4 +1,4 @@
-from template.models.request_log_model import RequestLog
+from request_log.models import RequestLog
 from rest_framework import serializers
 
 class RequestLogSerializer(serializers.ModelSerializer):

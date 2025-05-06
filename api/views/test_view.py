@@ -8,3 +8,4 @@ class TestViewSet(ViewSet, APIException):
         return Response({
             'status': 'Success',
         }, status=HTTP_200_OK)
+    

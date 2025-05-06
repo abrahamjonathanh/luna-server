@@ -1,0 +1,77 @@
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        background-color: #f4f4f4;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 600px;
+        margin: 20px auto;
+        background: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background-color: #d9534f;
+        color: #ffffff;
+        padding: 20px;
+        text-align: center;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 24px;
+      }
+      .content {
+        padding: 20px;
+        color: #333333;
+      }
+      .content p {
+        margin: 10px 0;
+      }
+      .content .highlight {
+        color: #d9534f;
+        font-weight: bold;
+      }
+      .footer {
+        background-color: #f8f9fa;
+        padding: 10px;
+        text-align: center;
+        font-size: 0.8em;
+        color: #6c757d;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>⚠️ Alert: Threshold Exceeded</h1>
+      </div>
+
+      <div class="content">
+        <p>Hello {{ recipient_name }},</p>
+
+        <p>We have detected that one or more thresholds have been exceeded:</p>
+
+        <ul>
+          <li>Response time: <span class="highlight">{{ response_time }}s</span> (Threshold: 10s)</li>
+          <li>Error rate: <span class="highlight">{{ error_rate }}%</span> (Threshold: 20%)</li>
+        </ul>
+
+        <p>Please investigate the issue as soon as possible to ensure system stability.</p>
+
+        <p>Best regards,<br />Your Monitoring Team</p>
+      </div>
+
+      <div class="footer">
+        <p>© {% now "Y" %} Your Company. All rights reserved.</p>
+        <p>If you believe this alert was sent in error, please contact support.</p>
+      </div>
+    </div>
+  </body>
+</html>

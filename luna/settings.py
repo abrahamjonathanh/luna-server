@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from celery.schedules import crontab
 
 # Load environment variables from .env file
 load_dotenv()
@@ -38,6 +39,13 @@ DB_HOST = str(os.getenv("DB_HOST"))
 DB_PORT = str(os.getenv("DB_PORT"))
 DB_SCHEMA = str(os.getenv('DB_SCHEMA'))
 
+EMAIL_BACKEND = str(os.getenv("EMAIL_BACKEND"))
+EMAIL_HOST = str(os.getenv("EMAIL_HOST"))
+EMAIL_PORT = str(os.getenv("EMAIL_PORT"))
+EMAIL_USE_TLS = str(os.getenv("EMAIL_USE_TLS"))
+EMAIL_HOST_USER = str(os.getenv("EMAIL_HOST_USER"))
+EMAIL_HOST_PASSWORD = str(os.getenv("EMAIL_HOST_PASSWORD"))
+
 # IPINFO_TOKEN = str(os.getenv("IPINFO_TOKEN"))
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -55,13 +63,21 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'rest_framework',
-    'api',
-    'template'
+    'rest_framework', # DRF
+    'django_celery_beat', # Celery Beat for periodic tasks
+    'api', # Your app
+    'template', # Your app
+    'request_log', # Your app
 ]
 
 REST_FRAMEWORK = {
-    'EXCEPTION_HANDLER': 'template.exceptions.custom_exception.custom_exception_handler',
+    'EXCEPTION_HANDLER': 'request_log.exceptions.custom_exception.custom_exception_handler',
+    # 'DEFAULT_AUTHENTICATION_CLASSES': [
+    #     'template.authentication.TokenAuthentication',
+    # ],
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ]
 }
 
 MIDDLEWARE = [
@@ -73,7 +89,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'template.middlewares.request_log_middleware.RequestLogMiddleware'
+    'request_log.middlewares.request_log_middleware.RequestLogMiddleware'
 ]
 
 ROOT_URLCONF = 'luna.urls'
@@ -81,7 +97,7 @@ ROOT_URLCONF = 'luna.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],  # Important!
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -96,6 +112,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'luna.wsgi.application'
 
+# CELERY_BEAT_SCHEDULE = {
+#     "print-every-15-minutes": {
+#         "task": "api.tasks.check_error_rates_and_alert",
+#         # "schedule": crontab(minute="*/1"),
+#     },
+# }
+
+# Logging
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -133,6 +170,19 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Cache settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',  # Use the appropriate Redis server URL
+        'TIMEOUT': 60 * 60 * 24,  # Cache timeout in seconds (24 hours)
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+AUTH_USER_MODEL = 'api.User'
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
@@ -161,3 +211,12 @@ CORS_ORIGIN_ALLOW_ALL = True
 
 # GEOIP2
 GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
+
+# Celery for task queue
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Broker (Redis)
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Optional (for task results)
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'  # Use DB for schedules
+
+# Redis
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379

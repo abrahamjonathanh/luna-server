@@ -1,1 +1,1 @@
-from .request_log_serializer import RequestLogSerializer
+from .email_serializer import EmailSerializer

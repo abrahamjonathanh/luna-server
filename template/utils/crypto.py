@@ -55,6 +55,7 @@ def decrypt(ciphertext: str, decrypt_key: str = FERNET_KEY) -> str:
     """
     # setup, convert to byte
     try:
+        print(ciphertext, decrypt_key)
         ciphertext = str(ciphertext)
         cipherbyte = ciphertext.encode()
         decrypt_key_byte = decrypt_key.encode()

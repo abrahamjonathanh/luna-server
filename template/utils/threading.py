@@ -6,7 +6,7 @@ These utils are usually used, but not limited to, middlewares.
 
 from threading import local
 
-from template.models.request_log_model import RequestLog
+from request_log.models.request_log_model import RequestLog
 
 _local_thread = local()
 

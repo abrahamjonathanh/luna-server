@@ -1,5 +1,5 @@
 from django.contrib.gis.geoip2 import GeoIP2
-from template.models.request_log_model import RequestLog
+from request_log.models.request_log_model import RequestLog
 from template.utils.threading import set_current_request_log
 
 import time
@@ -22,7 +22,7 @@ class RequestLogMiddleware:
         start_time = time.time()
 
         client_ip = self.get_client_ip_address(request)
-
+        print(f"Client IP: {client_ip}")
         g = GeoIP2()
 
         try:
@@ -63,6 +63,9 @@ class RequestLogMiddleware:
         # Update log with response details
         req_log.process_time_ms = round(time.time() - start_time, 4)  # Convert to ms
         req_log.status_code = response.status_code
+
+        if response.status_code == 400 and req_log.error_message is None:
+            req_log.error_message = f'Response: {response.data}'
 
         req_log.save()
 

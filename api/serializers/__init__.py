@@ -1,1 +1,5 @@
 from .application_serializer import ApplicationSerializer
+from .user_serializer import UserSerializer
+from .role_serializer import RoleSerializer
+from .configuration_serializer import ConfigurationSerializer
+from .database_test_serializer import DatabaseTestSerializer
