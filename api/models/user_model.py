@@ -7,7 +7,7 @@ class User(AbstractBaseUser):
     fullname = models.CharField('fullname', max_length=255)
     password = models.CharField('password', max_length=255)
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='users')
-    is_active = models.BooleanField('is_active', default=True)
+    is_active = models.BooleanField('is_active', default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
