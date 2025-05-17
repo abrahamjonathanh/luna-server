@@ -1,33 +1,48 @@
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet, ViewSet
+from rest_framework.viewsets import ViewSet
+from rest_framework.exceptions import APIException
+
 from api.models.configuration_model import Configuration
 from api.serializers.configuration_serializer import ConfigurationSerializer
-from django.core.cache import cache  # Import cache for Redis
-from redis.exceptions import ConnectionError as RedisConnectionError
+from template.redis_client import redis_instance
 
 class ConfigurationView(ViewSet):
     def list(self, request):
         """List all configurations from Redis cache."""
-        configurations = []
+        REQUIRED_KEYS = ['DEFAULT_DATE_RANGE',
+                        'ALERT_ACTIVATED',
+                        'ERROR_RATE_THRESHOLD',
+                        'RESPONSE_TIME_THRESHOLD',
+                        'SEND_EMAIL_EVERY']
+        
         try:
-            keys = cache.keys('*')  # Get all keys from Redis
-        except RedisConnectionError as e:
-            # Log the error and use the request object for logging context
-            print(f"Redis connection error: {e}. User: {request.user if hasattr(request, 'user') else 'Unknown'}")
-            keys = []  # Fallback to an empty list if Redis is unavailable
-
-        if not keys:  # Check if Redis is empty
-            queryset = Configuration.objects.all()  # Fallback to database if cache is empty
-            for configuration in queryset:
-                cache.set(configuration.key, configuration.value)
-
-        keys = cache.keys('*')  # Get all keys from Redis
-
-        for key in keys:
-            value = cache.get(key)  # Get the value for each key
-            configurations.append({"id": key, "value": value})
-
-        return Response(configurations)
+            # Check if Redis is running properly
+            redis_instance.ping()
+            redis_data = redis_instance.keys('*')
+            if all(key in redis_data for key in REQUIRED_KEYS):
+                # If Redis connection is successful and data is not empty
+                redis_data = { key : redis_instance.get(key) for key in redis_data}
+                print("Redis connection successful.")
+            else:
+                config_values = Configuration.objects.filter().values('pk', 'value')
+                if config_values:
+                    redis_data = {item['pk']: item['value'] for item in config_values}
+                    # Set the data into Redis
+                    for key, value in redis_data.items():
+                        print(f"Setting {key} in Redis with value {value}")
+                        redis_instance.set(key, value)
+                else:
+                    raise APIException("No data found in PostgreSQL.")
+        except Exception:
+            print("Redis connection failed. Fetching data from PostgreSQL.")
+            # If Redis connection fails, fetch data from PostgreSQL
+            config_values = Configuration.objects.filter().values('pk', 'value')
+            if config_values:
+                redis_data = {item['pk']: item['value'] for item in config_values}
+            else:
+                raise APIException("No data found in PostgreSQL either.")
+        
+        return Response(redis_data)
 
     def create(self, request):
         """Create or update configurations based on the request body and store them in Redis for caching."""
@@ -36,16 +51,23 @@ class ConfigurationView(ViewSet):
         data = request.data
 
         processed_configurations = []
-        print(request.data)
         for name, value in data.items():
             # Check if the name already exists in the database
-            configuration, created = Configuration.objects.update_or_create(
+            configuration, _ = Configuration.objects.update_or_create(
                 key=name.upper(),  # Convert the 'key' to uppercase for lookup
                 defaults={"value": value}
             )
             
+            try:
+                # Check if Redis is running properly
+                redis_instance.ping()
+                redis_key = str(configuration.id)  # Ensure Redis key is a string
+                redis_value = str(value)  # Ensure Redis value is a string
+                redis_instance.set(redis_key, redis_value)
+            except Exception as e:
+                print(f"Redis connection failed. {e}")
+                
             # Store the key-value pair in Redis
-            cache.set(configuration.id, value)
 
             processed_configurations.append(ConfigurationSerializer(configuration).data)
 

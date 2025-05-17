@@ -1,77 +1,187 @@
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        line-height: 1.6;
-        background-color: #f4f4f4;
-        margin: 0;
-        padding: 0;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Error Alert</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f6f9;
+      padding: 20px;
+      color: #333;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: auto;
+      background-color: #ffffff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      font-size: 24px;
+      font-weight: bold;
+      color: #e74c3c;
+      margin-bottom: 10px;
+    }
+
+    .sub-header {
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+
+    .highlight-box {
+      background-color: #fff3cd;
+      color: #856404;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #ffeeba;
+      margin-bottom: 30px;
+    }
+
+    .highlight-box-danger {
+      background-color: #ffcdcd;
+      color: #850415;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #ffeeba;
+      margin-bottom: 30px;
+    }
+
+    .cards {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .card {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 20px;
+      flex: 1;
+      text-align: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+      width: 100%;
+    }
+
+    .card strong {
+      display: block;
+      font-size: 20px;
+      margin-top: 5px;
+      color: #333;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f0f0f0;
+      font-weight: bold;
+    }
+
+    .btn {
+      margin: 30px auto;
+      padding: 12px 20px;
+      background-color: #3498db;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-weight: bold;
+      text-align: center;
+      display: block;
+      width: fit-content;
+    }
+
+    .footer {
+      margin-top: 40px;
+      font-size: 12px;
+      color: #999;
+      text-align: center;
+    }
+
+    @media only screen and (max-width: 600px) {
+      .cards {
+        flex-direction: column;
       }
-      .container {
-        max-width: 600px;
-        margin: 20px auto;
-        background: #ffffff;
-        border-radius: 8px;
-        overflow: hidden;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-      }
-      .header {
-        background-color: #d9534f;
-        color: #ffffff;
-        padding: 20px;
-        text-align: center;
-      }
-      .header h1 {
-        margin: 0;
-        font-size: 24px;
-      }
-      .content {
-        padding: 20px;
-        color: #333333;
-      }
-      .content p {
-        margin: 10px 0;
-      }
-      .content .highlight {
-        color: #d9534f;
-        font-weight: bold;
-      }
-      .footer {
-        background-color: #f8f9fa;
-        padding: 10px;
-        text-align: center;
-        font-size: 0.8em;
-        color: #6c757d;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>⚠️ Alert: Threshold Exceeded</h1>
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header highlight-box-danger">🚨 Error Alert Notification</div>
+    <div class="sub-header">
+      We have detected some issues with the service you are monitoring during the period: <strong>{{ start_time }} - {{ end_time }}</strong>.
+    </div>
+
+    <p>The system has detected that one or more metrics have exceeded the defined thresholds. Please review the details below to take appropriate action.</p>
+
+    {% if error_rate_percent > threshold_rate_percent or max_response_time > response_time_threshold %}
+    <div class="highlight-box">
+      <ul>
+        <li><strong>Error Rate:</strong> <span class="danger">{{ error_rate_percent }}%</span> (Threshold: {{ threshold_rate_percent }}%)</li>
+        <li><strong>Response Time:</strong> <span class="danger">{{ response_time }} ms</span> (Threshold: {{ response_time_threshold }} ms)</li>
+      </ul>
+    </div>
+    {% else %}
+    <div class="highlight-box success">
+      ✅ All systems are operating within threshold limits.
+    </div>
+    {% endif %}
+
+    <div class="cards">
+      <div class="card">
+        Total Requests
+        <strong>{{ total_requests }}</strong>
       </div>
-
-      <div class="content">
-        <p>Hello {{ recipient_name }},</p>
-
-        <p>We have detected that one or more thresholds have been exceeded:</p>
-
-        <ul>
-          <li>Response time: <span class="highlight">{{ response_time }}s</span> (Threshold: 10s)</li>
-          <li>Error rate: <span class="highlight">{{ error_rate }}%</span> (Threshold: 20%)</li>
-        </ul>
-
-        <p>Please investigate the issue as soon as possible to ensure system stability.</p>
-
-        <p>Best regards,<br />Your Monitoring Team</p>
+      <div class="card">
+        4xx Errors
+        <strong>{{ total_4xx }}</strong>
       </div>
-
-      <div class="footer">
-        <p>© {% now "Y" %} Your Company. All rights reserved.</p>
-        <p>If you believe this alert was sent in error, please contact support.</p>
+      <div class="card">
+        5xx Errors
+        <strong>{{ total_5xx }}</strong>
       </div>
     </div>
-  </body>
+
+    <table>
+      <thead>
+        <tr>
+          <th>URL</th>
+          <th>Service Name</th>
+          <th>4xx Errors</th>
+          <th>5xx Errors</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in url_error_table %}
+        <tr>
+          <td>{{ row.url }}</td>
+          <td>{{ row.service_name }}</td>
+          <td>{{ row.errors_4xx }}</td>
+          <td>{{ row.errors_5xx }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <a href="http://localhost:8000/login" class="btn">🔍 View More Details</a>
+
+    <div class="footer">
+      This alert was generated automatically. Please do not reply to this email.
+    </div>
+  </div>
+</body>
 </html>

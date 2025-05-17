@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
-from celery.schedules import crontab
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,12 +31,15 @@ SECRET_KEY = 'django-insecure-pn^%xvqaenmm=7h^he5)11cl&p@pn10l&#6i#47m6@aj$#=ew(
 APP_NAME = str(os.getenv("APP_NAME"))
 FERNET_KEY = str(os.getenv("FERNET_KEY"))
 
-DB_NAME = str(os.getenv("DB_NAME"))
-DB_USER = str(os.getenv("DB_USER"))
-DB_PASSWORD = str(os.getenv("DB_PASSWORD"))
-DB_HOST = str(os.getenv("DB_HOST"))
-DB_PORT = str(os.getenv("DB_PORT"))
-DB_SCHEMA = str(os.getenv('DB_SCHEMA'))
+POSTGRES_HOST = str(os.getenv("POSTGRES_HOST"))
+POSTGRES_PORT = str(os.getenv("POSTGRES_PORT"))
+POSTGRES_DB = str(os.getenv("POSTGRES_DB"))
+POSTGRES_USER = str(os.getenv("POSTGRES_USER"))
+POSTGRES_PASSWORD = str(os.getenv("POSTGRES_PASSWORD"))
+POSTGRES_SCHEMA = str(os.getenv("POSTGRES_SCHEMA"))
+
+REDIS_HOST = str(os.getenv("REDIS_HOST"))
+REDIS_PORT = str(os.getenv("REDIS_PORT"))
 
 EMAIL_BACKEND = str(os.getenv("EMAIL_BACKEND"))
 EMAIL_HOST = str(os.getenv("EMAIL_HOST"))
@@ -46,7 +48,6 @@ EMAIL_USE_TLS = str(os.getenv("EMAIL_USE_TLS"))
 EMAIL_HOST_USER = str(os.getenv("EMAIL_HOST_USER"))
 EMAIL_HOST_PASSWORD = str(os.getenv("EMAIL_HOST_PASSWORD"))
 
-# IPINFO_TOKEN = str(os.getenv("IPINFO_TOKEN"))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -55,7 +56,6 @@ ALLOWED_HOSTS = ['*',]
 
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -97,7 +97,7 @@ ROOT_URLCONF = 'luna.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],  # Important!
+        'DIRS': [os.path.join(BASE_DIR, 'templates')], 
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -111,13 +111,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'luna.wsgi.application'
-
-# CELERY_BEAT_SCHEDULE = {
-#     "print-every-15-minutes": {
-#         "task": "api.tasks.check_error_rates_and_alert",
-#         # "schedule": crontab(minute="*/1"),
-#     },
-# }
 
 # Logging
 LOGGING = {
@@ -140,13 +133,13 @@ LOGGING = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': DB_NAME,
-        'USER': DB_USER,
-        'PASSWORD': DB_PASSWORD,
-        'HOST': DB_HOST,
-        'PORT': DB_PORT,
+        'NAME': POSTGRES_DB,
+        'USER': POSTGRES_USER,
+        'PASSWORD': POSTGRES_PASSWORD,
+        'HOST': POSTGRES_HOST,
+        'PORT': POSTGRES_PORT,
         'OPTIONS': {
-            'options': f'-c search_path={ DB_SCHEMA }'
+            'options': f'-c search_path={POSTGRES_SCHEMA}'
         }
     }
 }
@@ -171,10 +164,11 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Cache settings
+
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',  # Use the appropriate Redis server URL
+        'LOCATION': f'redis://{REDIS_HOST}:{REDIS_PORT}/1',  # Use the appropriate Redis server URL
         'TIMEOUT': 60 * 60 * 24,  # Cache timeout in seconds (24 hours)
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
@@ -213,10 +207,6 @@ CORS_ORIGIN_ALLOW_ALL = True
 GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
 
 # Celery for task queue
-CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Broker (Redis)
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Optional (for task results)
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'  # Broker (Redis)
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'  # Optional (for task results)
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'  # Use DB for schedules
-
-# Redis
-REDIS_HOST = 'localhost'
-REDIS_PORT = 6379

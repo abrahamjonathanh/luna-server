@@ -11,3 +11,11 @@ class Configuration(models.Model):
         if self.key:
             self.id = self.key.upper()
         super().save(*args, **kwargs)
+
+    # bulk_create id to uppercase
+    def bulk_create(self, objs, *args, **kwargs):
+        print(objs)
+        for obj in objs:
+            if obj.key:
+                obj.id = obj.key.upper()
+        super().bulk_create(objs, *args, **kwargs)

@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import TestViewSet, RequestLogView, ApplicationView, RoleView, UserView, ConfigurationView, TestDatabaseConnectionView
-from template.view.email_view import SendEmailView
+from template.view.email_view import SendEmailView, email_template_preview
 
 router = DefaultRouter()
 router.register(r'test', TestViewSet, basename='test')
@@ -17,4 +17,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('send-email/', SendEmailView.as_view(), name='send-email'),
     path('test-db/', TestDatabaseConnectionView.as_view(), name='test-database-connection'),
+    path('email-template-preview/', email_template_preview, name='email-template-preview'),
 ]

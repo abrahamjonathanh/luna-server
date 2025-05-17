@@ -1,89 +1,128 @@
-from celery import shared_task
 import logging
 import pandas as pd
-from django.core.cache import cache
-
-
-from template.redis_client import redis_instance
+from celery import shared_task
+from rest_framework.exceptions import APIException
+from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
 
 from api.models.configuration_model import Configuration
 from api.views.request_log_view import RequestLogView
-from template.view.email_view import SendEmailView
-
-logger = logging.getLogger(__name__)
-
-from django.core.mail import EmailMessage
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-
-from template.serializers.email_serializer import EmailSerializer
+from template.redis_client import redis_instance
 
 from luna.settings import EMAIL_HOST_USER
 
+logger = logging.getLogger(__name__)
+
 @shared_task(name="api.tasks.check_error_rates_and_alert")
 def check_error_rates_and_alert():
-    if not cache.get('ALERT_ACTIVATED', False):
+    """
+    Check error rates and send alert emails if necessary.
+    This function checks the error rates from Redis and PostgreSQL, and sends an email alert if the error rate exceeds a certain threshold.
+    """
+    if redis_instance.get('ALERT_ACTIVATED') == 'False':
         return
     
-    logger.info("🔥 This prints every 15 minutes from Celery task.")
+    logger.info("Running Celery task to check error rates and send alert emails.")
 
-    # Get data from redis
-    redis_data = redis_instance.keys('*')
+    try:
+        # Check if Redis is running properly
+        redis_instance.ping()
+        redis_data = redis_instance.keys('*')
 
-    print(f'Redis data: {redis_data}')
+        REQUIRED_KEYS = ['DEFAULT_DATE_RANGE',
+                        'ALERT_ACTIVATED',
+                        'ERROR_RATE_THRESHOLD',
+                        'RESPONSE_TIME_THRESHOLD',
+                        'SEND_EMAIL_EVERY']      
+          
+        if all(key in redis_data for key in REQUIRED_KEYS):
+            # If Redis connection is successful and data is not empty
+            redis_data = { key : redis_instance.get(key) for key in redis_data}
+            logger.info("Redis connection successful.")
+        else:
+            config_values = Configuration.objects.filter(pk__in=REQUIRED_KEYS).values('pk', 'value')
+            if config_values:
+                redis_data = {item['pk']: item['value'] for item in config_values}
+                # Set the data into Redis
+                for key, value in redis_data.items():
+                    logger.info(f"Setting {key} in Redis with value {value}")
+                    redis_instance.set(key, value)
+            else:
+                raise APIException("No data found in PostgreSQL.")
+    except Exception:
+        logger.error("Redis connection failed. Fetching data from PostgreSQL.")
+        # If Redis connection fails, fetch data from PostgreSQL
+        config_values = Configuration.objects.filter(pk__in=REQUIRED_KEYS).values('pk', 'value')
+        if config_values:
+            redis_data = {item['pk']: item['value'] for item in config_values}
+        else:
+            raise APIException("No data found in PostgreSQL either.")
 
-    config_values = Configuration.objects.filter(pk__in=['ERROR_RATE_THRESHOLD', 'RESPONSE_TIME_THRESHOLD']).values('pk', 'value')
-    config_dict = {config['pk']: config['value'] for config in config_values}
+    ERROR_THRESHOLD = float(redis_data.get('ERROR_RATE_THRESHOLD')) if redis_data.get('ERROR_RATE_THRESHOLD') else 10
+    RESPONSE_TIME_THRESHOLD = float(redis_data.get('RESPONSE_TIME_THRESHOLD')) if redis_data.get('RESPONSE_TIME_THRESHOLD') else 10000
+    SEND_EMAIL_EVERY = int(redis_data.get('SEND_EMAIL_EVERY')) if redis_data.get('SEND_EMAIL_EVERY') else 15
     
-    ERROR_THRESHOLD = float(config_dict.get('ERROR_RATE_THRESHOLD')) if config_dict else 5 # in percent
-    RESPONSE_TIME_THRESHOLD = float(config_dict.get('RESPONSE_TIME_THRESHOLD')) if config_dict else 10000 # in milliseconds
+    logger.info(f'🔥 This prints every {SEND_EMAIL_EVERY} minutes from Celery task.')
 
-    end_date = pd.Timestamp.now(tz='Asia/Jakarta') # Current time in Jakarta timezone
-    start_date = end_date - pd.Timedelta(minutes=15) # 15 minutes ago
-        
+    # Calculate the start and end date for the email
+    end_date = pd.Timestamp.now(tz='Asia/Jakarta')
+    start_date = end_date - pd.Timedelta(minutes=SEND_EMAIL_EVERY)
+
     request_logs = RequestLogView.get_all_requestlogs(start_date=start_date, end_date=end_date)
-    print(f'Error Threshold: {ERROR_THRESHOLD}')
-    print(f'Response Time Threshold: {RESPONSE_TIME_THRESHOLD}')
+
     if not request_logs.empty:
-        # success_requests = request_logs[request_logs['status_code'] < 400]
-        client_error_requests = request_logs[(request_logs['status_code'] >= 400) & (request_logs['status_code'] < 500)]
-        server_error_requests = request_logs[request_logs['status_code'] >= 500]
+        total_requests = request_logs.shape[0]
+        client_error_requests = request_logs[(request_logs['status_code'] >= 400) & (request_logs['status_code'] < 500)].shape[0]
+        server_error_requests = request_logs[request_logs['status_code'] >= 500].shape[0]
         
         # Percentage of client and server errors
-        client_error_percentage = (len(client_error_requests) / len(request_logs)) * 100 if len(request_logs) > 0 else 0
-        server_error_percentage = (len(server_error_requests) / len(request_logs)) * 100 if len(request_logs) > 0 else 0
+        client_error_percentage = ((client_error_requests / total_requests) * 100) if total_requests > 0 else 0
+        server_error_percentage = ((server_error_requests / total_requests) * 100) if total_requests > 0 else 0
         error_percentage = client_error_percentage + server_error_percentage
 
-        logger.info(f"Client Error Percentage: {client_error_percentage:.2f}%")
-        logger.info(f"Server Error Percentage: {server_error_percentage:.2f}%")
-        logger.info(f"Total Error Percentage: {error_percentage:.2f}%")
+        # Check if the error rate or average response time exceeds the threshold exceeds the threshold
+        if (error_percentage < ERROR_THRESHOLD) or (request_logs['process_time_ms'].mean() < RESPONSE_TIME_THRESHOLD):
+            return
 
-        # Get response time avg
-        response_time_avg = request_logs['process_time_ms'].mean() # in milliseconds
+        # Group by URL and service name
+        url_error_table = request_logs.groupby(['path', 'app_name']).agg(
+            errors_4xx=('status_code', lambda x: ((x >= 400) & (x < 500)).sum() if not x.empty else 0),
+            errors_5xx=('status_code', lambda x: (x >= 500).sum() if not x.empty else 0)
+        ).reset_index()
 
-        if error_percentage > ERROR_THRESHOLD:
-            logger.error(f"Error percentage {error_percentage:.2f}% exceeds threshold of {ERROR_THRESHOLD}%. Sending alert email.")
-            
-        if response_time_avg > RESPONSE_TIME_THRESHOLD:
-            logger.error(f"Average response time {response_time_avg:.2f}s exceeds threshold of {RESPONSE_TIME_THRESHOLD}s. Sending alert email.")
+        # Filter out rows where both errors_4xx and errors_5xx are zero
+        url_error_table = url_error_table[(url_error_table['errors_4xx'] > 0) | (url_error_table['errors_5xx'] > 0)]
+        
+        url_error_table = url_error_table.rename(columns={
+            'path': 'url', 
+            'app_name': 'service_name',
+        })
+        url_error_table = url_error_table.to_dict(orient='records')
 
-        # logger.info(f"Success Requests: {len(success_requests)}")
+        email_data = {
+            "start_time": start_date.strftime("%B %d, %Y %H:%M:%S %Z"),
+            "end_time": end_date.strftime("%B %d, %Y %H:%M:%S %Z"),
+            "total_requests": total_requests,
+            "total_4xx": client_error_requests,
+            "total_5xx": server_error_requests,
+            "error_rate_percent": round(error_percentage, 2),
+            "threshold_rate_percent": ERROR_THRESHOLD,
+            "response_time": round(request_logs['process_time_ms'].mean(), 2),
+            "response_time_threshold": RESPONSE_TIME_THRESHOLD,
+            "url_error_table": url_error_table,
+        }
 
-    # html_message = render_to_string('email_template.html', {
-    #     'subject': 'TEST',
-    #     'message': 'hai',
-    #     'recipient_name': 'User',  # Use first name or default to 'User'
-    # })
-    # plain_message = strip_tags(html_message)
+        # Send email
+        html_message = render_to_string('email_template.html', email_data)
 
-    # email = EmailMessage(
-    #     subject='TEST',
-    #     body=html_message,
-    #     from_email=EMAIL_HOST_USER,
-    #     to=['ipcproject10@gmail.com'],
-    # )
-    # email.content_subtype = "html"  # Set the email content type to HTML
-    # email.send()
+        email = EmailMessage(
+            subject= f"Warning! Error Occurred in {email_data['start_time']} - {email_data['end_time']}",
+            body=html_message,
+            from_email=EMAIL_HOST_USER,
+            to=['ipcproject10@gmail.com'],
+        )
+        email.content_subtype = "html"  # Set the email content type to HTML
+        email.send()
+        logger.info(f"Email sent successfully")
+    else:
+        logger.warning(f"No request logs found from {start_date} to {end_date}.")

@@ -9,6 +9,29 @@ from template.serializers.email_serializer import EmailSerializer
 
 from luna.settings import EMAIL_HOST_USER
 
+from django.shortcuts import render
+
+
+def email_template_preview(request):
+    context = {
+        "start_time": "2025-05-12 00:00",
+        "end_time": "2025-05-12 23:59",
+        "total_requests": 400,
+        "total_4xx": 50,
+        "total_5xx": 12,
+        "error_rate_percent": 12.5,
+        "threshold_rate_percent": 10,
+        "response_time": 12000,
+        "response_time_threshold": 10000,
+        "url_error_table": [
+            {"url": "/api/users/", "service_name": "app_1", "errors_4xx": 30, "errors_5xx": 2},
+            {"url": "/api/orders/", "service_name": "app_1" , "errors_4xx": 5, "errors_5xx": 10},
+            # ...
+        ],
+    }
+
+    return render(request, 'email_template.html', context)
+
 class SendEmailView(APIView):
     def post(self, request):
         serializer = EmailSerializer(data=request.data)
@@ -30,7 +53,7 @@ class SendEmailView(APIView):
                     'recipient_name': recipient_names[0] if recipient_names else 'User',  # Use first name or default to 'User'
                 })
                 plain_message = strip_tags(html_message)
-                print(plain_message)
+
                 email = EmailMessage(
                     subject=subject,
                     body=html_message,

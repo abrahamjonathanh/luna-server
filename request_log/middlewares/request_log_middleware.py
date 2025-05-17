@@ -28,17 +28,18 @@ class RequestLogMiddleware:
         try:
             location_data = g.city(client_ip)  # Get city info based on IP
         except Exception:
-            location_data = {"city": None, 'country_name': None}
+            location_data = {"city": None, 'country_name': None, 'country_code': None}
 
         data = {
-            'user': 'Anonymous',
             'path': request.path,
             'body': {},
+            'headers': dict(request.headers),
             'method': request.method,
             'ip_address': client_ip,
             'user_agent': request.META['HTTP_USER_AGENT'],
             'city': location_data['city'] or None,
             'country_name': location_data['country_name'] or None,
+            'country_code': location_data['country_code'] or None,
             'process_time_ms': '0',
             'status_code': '0',
             'error_message': None
