@@ -4,6 +4,7 @@ from .role_model import Role
 
 class User(AbstractBaseUser):
     username = models.CharField('username', max_length=255, unique=True)
+    email = models.EmailField('email', max_length=255, unique=True)
     fullname = models.CharField('fullname', max_length=255)
     password = models.CharField('password', max_length=255)
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='users')

@@ -6,12 +6,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         schedule, _ = IntervalSchedule.objects.get_or_create(
-            every=15,
+            every=10,
             period=IntervalSchedule.MINUTES,
         )
 
         task, created = PeriodicTask.objects.get_or_create(
-            name="Check API Errors Every 15 Minutes",
+            name="Check API Errors Interval",
             task="api.tasks.check_error_rates_and_alert",
             interval=schedule,
             defaults={'enabled': True},

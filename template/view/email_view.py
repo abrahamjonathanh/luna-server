@@ -24,13 +24,20 @@ def email_template_preview(request):
         "response_time": 12000,
         "response_time_threshold": 10000,
         "url_error_table": [
-            {"url": "/api/users/", "service_name": "app_1", "errors_4xx": 30, "errors_5xx": 2},
-            {"url": "/api/orders/", "service_name": "app_1" , "errors_4xx": 5, "errors_5xx": 10},
+            {"url": "/api/users/", "service_name": "app_1", "errors_4xx": 30, "errors_5xx": 2, "total_requests": 32},
+            {"url": "/api/orders/", "service_name": "app_1" , "errors_4xx": 5, "errors_5xx": 10, "total_requests": 15},
             # ...
         ],
     }
 
     return render(request, 'email_template.html', context)
+
+def reset_password_template_preview(request):
+    context = {
+        "user_name": "John Doe",
+        "reset_link": "localhost:5173/reset-password/NA/cq7iid-63ab2b280dd187804edb4658ff3fcb1a"
+    }
+    return render(request, 'reset_password_template.html', context)
 
 class SendEmailView(APIView):
     def post(self, request):

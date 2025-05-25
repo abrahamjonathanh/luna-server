@@ -7,12 +7,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         data = [
             ("ALERT_ACTIVATED", "False"),
-            ("DB_HOST", "localhost"),
-            ("DB_NAME", "explore"),
-            ("DB_PASSWORD", "admin"),
-            ("DB_PORT", "5432"),
-            ("DB_SCHEMA", "explore"),
-            ("DB_USER", "postgres"),
+            ("RECIPIENTS", "[]"),
+            ("SEND_EMAIL_EVERY", "10"),
             ("DEFAULT_DATE_RANGE", "7D"),
             ("ERROR_RATE_THRESHOLD", "5"),
             ("ERROR_THRESHOLD", "25"),

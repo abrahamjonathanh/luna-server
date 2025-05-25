@@ -11,9 +11,12 @@ echo "PostgreSQL started"
 
 # Apply migrations
 python manage.py migrate
+python manage.py collectstatic --noinput
 
 # Run seeder
 python manage.py seed_configuration
+
+python manage.py seed_role
 
 # Run celery worker
 python manage.py setup_celery_beat

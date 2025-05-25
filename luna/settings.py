@@ -48,6 +48,7 @@ EMAIL_USE_TLS = str(os.getenv("EMAIL_USE_TLS"))
 EMAIL_HOST_USER = str(os.getenv("EMAIL_HOST_USER"))
 EMAIL_HOST_PASSWORD = str(os.getenv("EMAIL_HOST_PASSWORD"))
 
+CLIENT_HOST = str(os.getenv("CLIENT_HOST"))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -64,6 +65,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework', # DRF
+    'rest_framework_api_key', # DRF API Key
     'django_celery_beat', # Celery Beat for periodic tasks
     'api', # Your app
     'template', # Your app
@@ -74,7 +76,7 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'request_log.exceptions.custom_exception.custom_exception_handler',
     # 'DEFAULT_AUTHENTICATION_CLASSES': [
     #     'template.authentication.TokenAuthentication',
-    # ],
+    # ], # Turn this off when first executing `makemigrations`
     # 'DEFAULT_PERMISSION_CLASSES': [
     #     'rest_framework.permissions.IsAuthenticated',
     # ]
@@ -210,3 +212,7 @@ GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
 CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'  # Broker (Redis)
 CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'  # Optional (for task results)
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'  # Use DB for schedules
+
+# Password reset timeout
+# https://docs.djangoproject.com/en/5.1/topics/auth/default/#using-password-reset-views
+PASSWORD_RESET_TIMEOUT = 60 * 10 # 10 minutes

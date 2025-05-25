@@ -14,7 +14,6 @@ class Configuration(models.Model):
 
     # bulk_create id to uppercase
     def bulk_create(self, objs, *args, **kwargs):
-        print(objs)
         for obj in objs:
             if obj.key:
                 obj.id = obj.key.upper()

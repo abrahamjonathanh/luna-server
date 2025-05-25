@@ -12,16 +12,33 @@ import pandas as pd
 from rest_framework.pagination import PageNumberPagination
 from concurrent.futures import ThreadPoolExecutor
 from request_log.exceptions.api_exception import ValidationException
+from template.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 class RequestLogView(ViewSet):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    
     DEFAULT_DATE_RANGE = 7
 
     @staticmethod
-    def get_all_requestlogs(start_date=None, end_date=None, application_name=None, status_code=None, request_method=None, path=None):
+    def get_all_requestlogs(role="GUEST", start_date=None, end_date=None, application_name=None, status_code=None, request_method=None, path=None):
         """
         Get all request logs from the database.
         """
-        query_cols = "id, path, body, method, ip_address, user_agent, city, country_name, country_code, process_time_ms, status_code, error_message, created_at"
+        # Define columns for ADMIN and non-ADMIN users
+        admin_cols = [
+            "id", "path", "body", "headers", "method", "ip_address", "user_agent",
+            "city", "country_name", "country_code", "process_time_ms",
+            "status_code", "error_message", "created_at"
+        ]
+        guest_cols = [
+            "id", "path", "method", "country_name", "country_code", "process_time_ms",
+            "status_code", "error_message", "created_at"
+        ]
+        print(f'role: {role.id}')
+        is_admin = role.id == 'ADMIN'
+        query_cols = ", ".join(admin_cols if is_admin else guest_cols)
         queries = []
 
         if application_name is None:
@@ -129,17 +146,42 @@ class RequestLogView(ViewSet):
     @staticmethod
     def build_time_chart(request_log, complete_date_range, time_index):
         """
-        Build time chart.
+        Build time chart with success and error groups.
         """
-        request_series = request_log.groupby(time_index).size().reindex(complete_date_range).fillna(0)
-        response_series = request_log.groupby(time_index)['process_time_ms'].mean().reindex(complete_date_range).round(4).fillna(0)
+        # Success: status_code < 400
+        success_series = (
+            request_log[request_log['status_code'] < 400]
+            .groupby(time_index)
+            .size()
+            .reindex(complete_date_range)
+            .fillna(0)
+        )
+        # Error: status_code >= 400
+        error_series = (
+            request_log[request_log['status_code'] >= 400]
+            .groupby(time_index)
+            .size()
+            .reindex(complete_date_range)
+            .fillna(0)
+        )
+        response_series = (
+            request_log.groupby(time_index)['process_time_ms']
+            .mean()
+            .reindex(complete_date_range)
+            .round(4)
+            .fillna(0)
+        )
 
         return {
             'categories': complete_date_range.tz_convert('Asia/Jakarta').strftime('%Y-%m-%dT%H:%M:%S%z').to_list(),
             'request_series': [
                 {
-                    'name': 'Requests',
-                    'data': request_series.to_list()
+                    'name': 'Success',
+                    'data': success_series.to_list()
+                },
+                {
+                    'name': 'Error',
+                    'data': error_series.to_list()
                 }
             ],
             'response_time_series': [
@@ -286,13 +328,30 @@ class RequestLogView(ViewSet):
     @staticmethod
     def top_50_countries(request_logs):
         """
-        Get the top 50 countries based on request count.
+        Get the top 50 countries based on request count, only grouping non-null and non-empty country names.
         """
-        if 'country_code' in request_logs.columns:
-            top_country = request_logs.groupby(['country_name', 'country_code']).size().sort_values(ascending=False).reset_index()
+        # Filter out null or empty country_name
+        filtered_logs = request_logs[request_logs['country_name'].notnull() & (request_logs['country_name'].astype(str).str.strip() != '')]
+
+        if 'country_code' in filtered_logs.columns:
+            top_country = (
+                filtered_logs
+                .groupby(['country_name', 'country_code'])
+                .size()
+                .sort_values(ascending=False)
+                .reset_index()
+                .head(50)
+            )
             top_country.columns = ['country_name', 'country_code', 'value']
         else:
-            top_country = request_logs.groupby(['country_name']).size().sort_values(ascending=False).reset_index()
+            top_country = (
+                filtered_logs
+                .groupby(['country_name'])
+                .size()
+                .sort_values(ascending=False)
+                .reset_index()
+                .head(50)
+            )
             top_country.columns = ['country_name', 'value']
 
         return top_country.to_dict(orient='records')
@@ -340,7 +399,7 @@ class RequestLogView(ViewSet):
         ).reset_index()
 
         # Sort the grouped data by created_at in descending order
-        grouped_data.sort_values(by='last_activity', ascending=False, inplace=True)
+        grouped_data.sort_values(by='count', ascending=False, inplace=True)
 
         return grouped_data.to_dict(orient='records')
 
@@ -536,7 +595,7 @@ class RequestLogView(ViewSet):
         request_method = request.data.get('request_method', None)
 
         
-        request_logs = self.get_all_requestlogs(start_date=start_date, end_date=end_date, application_name=application_name, status_code=status_code, request_method=request_method)
+        request_logs = self.get_all_requestlogs(role=request.user.role, start_date=start_date, end_date=end_date, application_name=application_name, status_code=status_code, request_method=request_method)
 
         success_requests = request_logs[request_logs['status_code'] < 400]
         client_error_requests = request_logs[(request_logs['status_code'] >= 400) & (request_logs['status_code'] < 500)]
@@ -685,7 +744,7 @@ class RequestLogView(ViewSet):
     @action(detail=False, methods=['POST'], url_path='overview2')
     def get_temp(self, request):
         start_time = pd.Timestamp.now('Asia/Jakarta')
-        
+        print(f"User logged in: {request.user}")
         try:
             start_date = pd.to_datetime(request.data.get('start_date', pd.Timestamp.now(tz='Asia/Jakarta') - pd.Timedelta(days=self.DEFAULT_DATE_RANGE))).tz_convert('Asia/Jakarta')
             end_date = pd.to_datetime(request.data.get('end_date', pd.Timestamp.now(tz='Asia/Jakarta'))).tz_convert('Asia/Jakarta')
@@ -700,9 +759,10 @@ class RequestLogView(ViewSet):
         request_method = request.data.get('request_method', None)
 
         freq, start_date, end_date, complete_date_range = self.determine_frequency_and_range(start=start_date, end=end_date)
-        
+
         # ========== Get All Request Logs ==========
         request_logs = self.get_all_requestlogs(
+            role=request.user.role,
             start_date=start_date, 
             end_date=end_date, 
             application_name=application_name, 
@@ -777,14 +837,20 @@ class RequestLogView(ViewSet):
         Return a list of all request logs with pagination.
         """
         try:
-            start_date = pd.to_datetime(request.data.get('start_date', pd.Timestamp.now(tz='Asia/Jakarta') - pd.Timedelta(days=1))).tz_convert('Asia/Jakarta')
+            start_date = pd.to_datetime(request.data.get('start_date', pd.Timestamp.now(tz='Asia/Jakarta') - pd.Timedelta(days=self.DEFAULT_DATE_RANGE))).tz_convert('Asia/Jakarta')
             end_date = pd.to_datetime(request.data.get('end_date', pd.Timestamp.now(tz='Asia/Jakarta'))).tz_convert('Asia/Jakarta')
         except ValueError:
             return Response({'error': 'Invalid start_date format'}, status=HTTP_400_BAD_REQUEST)
 
+        application_name = request.data.get('application_name', None)
+        status_code = request.data.get('status_code', None)
+        request_method = request.data.get('request_method', None)
+
         path = request.data.get('path', None)
 
-        request_logs = self.get_all_requestlogs(start_date=start_date, end_date=end_date, path=path)
+        request_logs = self.get_all_requestlogs(role=request.user.role, start_date=start_date, end_date=end_date, 
+                                                application_name=application_name, status_code=status_code, 
+                                                request_method=request_method, path=path)
         
         if request_logs.empty:
             return Response({
@@ -820,7 +886,7 @@ class RequestLogView(ViewSet):
         application_name = request.data.get('application_name', None)
         request_method = request.data.get('request_method', None)
 
-        request_logs = self.get_all_requestlogs(start_date=start_date, end_date=end_date, application_name=application_name, status_code=status_code, request_method=request_method)
+        request_logs = self.get_all_requestlogs(role=request.user.role, start_date=start_date, end_date=end_date, application_name=application_name, status_code=status_code, request_method=request_method)
         
         # ========== Grouping Data ==========
         # Group by unique status_code and count the number of occurrences

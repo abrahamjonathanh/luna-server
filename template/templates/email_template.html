@@ -15,13 +15,13 @@
       max-width: 700px;
       margin: auto;
       background-color: #ffffff;
-      padding: 30px;
+      padding: 16px;
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
     .header {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: bold;
       color: #e74c3c;
       margin-bottom: 10px;
@@ -35,7 +35,7 @@
     .highlight-box {
       background-color: #fff3cd;
       color: #856404;
-      padding: 15px;
+      padding: 8px;
       border-radius: 6px;
       border: 1px solid #ffeeba;
       margin-bottom: 30px;
@@ -44,7 +44,7 @@
     .highlight-box-danger {
       background-color: #ffcdcd;
       color: #850415;
-      padding: 15px;
+      padding: 8px;
       border-radius: 6px;
       border: 1px solid #ffeeba;
       margin-bottom: 30px;
@@ -54,7 +54,7 @@
       display: flex;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: 15px;
+      gap: 16px;
       margin: 20px 0;
     }
 
@@ -65,7 +65,6 @@
       flex: 1;
       text-align: center;
       box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-      width: 100%;
     }
 
     .card strong {
@@ -90,19 +89,6 @@
     th {
       background-color: #f0f0f0;
       font-weight: bold;
-    }
-
-    .btn {
-      margin: 30px auto;
-      padding: 12px 20px;
-      background-color: #3498db;
-      color: #fff;
-      text-decoration: none;
-      border-radius: 6px;
-      font-weight: bold;
-      text-align: center;
-      display: block;
-      width: fit-content;
     }
 
     .footer {
@@ -161,6 +147,7 @@
         <tr>
           <th>URL</th>
           <th>Service Name</th>
+          <th>Total Requests</th>
           <th>4xx Errors</th>
           <th>5xx Errors</th>
         </tr>
@@ -170,14 +157,13 @@
         <tr>
           <td>{{ row.url }}</td>
           <td>{{ row.service_name }}</td>
+          <td>{{ row.total_requests }}</td>
           <td>{{ row.errors_4xx }}</td>
           <td>{{ row.errors_5xx }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
-
-    <a href="http://localhost:8000/login" class="btn">🔍 View More Details</a>
 
     <div class="footer">
       This alert was generated automatically. Please do not reply to this email.

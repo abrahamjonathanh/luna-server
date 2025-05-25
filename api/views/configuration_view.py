@@ -5,15 +5,25 @@ from rest_framework.exceptions import APIException
 from api.models.configuration_model import Configuration
 from api.serializers.configuration_serializer import ConfigurationSerializer
 from template.redis_client import redis_instance
+import ast
+from template.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
+from django_celery_beat.models import PeriodicTask, IntervalSchedule
+
 
 class ConfigurationView(ViewSet):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def list(self, request):
         """List all configurations from Redis cache."""
         REQUIRED_KEYS = ['DEFAULT_DATE_RANGE',
                         'ALERT_ACTIVATED',
                         'ERROR_RATE_THRESHOLD',
                         'RESPONSE_TIME_THRESHOLD',
-                        'SEND_EMAIL_EVERY']
+                        'SEND_EMAIL_EVERY',
+                        'RECIPIENTS'
+                        ]
         
         try:
             # Check if Redis is running properly
@@ -33,6 +43,21 @@ class ConfigurationView(ViewSet):
                         redis_instance.set(key, value)
                 else:
                     raise APIException("No data found in PostgreSQL.")
+                
+            if 'RECIPIENTS' in redis_data:
+                recipients_raw = redis_data['RECIPIENTS']
+                if isinstance(recipients_raw, bytes):  # Redis returns bytes
+                    recipients_raw = recipients_raw.decode()
+
+                try:
+                    # Safely parse the stringified list
+                    recipients_list = ast.literal_eval(recipients_raw)
+                    if isinstance(recipients_list, list):
+                        redis_data['RECIPIENTS'] = recipients_list
+                    else:
+                        redis_data['RECIPIENTS'] = []
+                except (ValueError, SyntaxError):
+                    redis_data['RECIPIENTS'] = []
         except Exception:
             print("Redis connection failed. Fetching data from PostgreSQL.")
             # If Redis connection fails, fetch data from PostgreSQL
@@ -58,6 +83,24 @@ class ConfigurationView(ViewSet):
                 defaults={"value": value}
             )
             
+            if name.upper() == 'SEND_EMAIL_EVERY':
+                # Create or update the periodic task for sending emails
+                schedule, _ = IntervalSchedule.objects.get_or_create(
+                    every=int(value),
+                    period=IntervalSchedule.MINUTES,
+                )
+                
+                PeriodicTask.objects.update_or_create(
+                    name='Check API Errors Interval',
+                    defaults={
+                        'interval': schedule,
+                        'task': 'api.tasks.check_error_rates_and_alert',
+                        'enabled': True,
+                        'args': '[]',
+                        'kwargs': '{}',
+                    },
+                )
+
             try:
                 # Check if Redis is running properly
                 redis_instance.ping()

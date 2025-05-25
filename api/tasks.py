@@ -1,4 +1,5 @@
 import logging
+import ast
 import pandas as pd
 from celery import shared_task
 from rest_framework.exceptions import APIException
@@ -61,7 +62,19 @@ def check_error_rates_and_alert():
     ERROR_THRESHOLD = float(redis_data.get('ERROR_RATE_THRESHOLD')) if redis_data.get('ERROR_RATE_THRESHOLD') else 10
     RESPONSE_TIME_THRESHOLD = float(redis_data.get('RESPONSE_TIME_THRESHOLD')) if redis_data.get('RESPONSE_TIME_THRESHOLD') else 10000
     SEND_EMAIL_EVERY = int(redis_data.get('SEND_EMAIL_EVERY')) if redis_data.get('SEND_EMAIL_EVERY') else 15
-    
+    RECIPIENTS = redis_data.get('RECIPIENTS')
+    logger.info(f"RECIPIENTS: {RECIPIENTS}")
+    if RECIPIENTS:
+        try:
+            RECIPIENTS = ast.literal_eval(RECIPIENTS)
+        except Exception as e:
+            logger.error(f"Failed to parse RECIPIENTS: {e}")
+            RECIPIENTS = [EMAIL_HOST_USER]
+    else:
+        RECIPIENTS = [EMAIL_HOST_USER]
+
+    logger.info(f'Recipient list: {RECIPIENTS}')
+
     logger.info(f'🔥 This prints every {SEND_EMAIL_EVERY} minutes from Celery task.')
 
     # Calculate the start and end date for the email
@@ -81,11 +94,12 @@ def check_error_rates_and_alert():
         error_percentage = client_error_percentage + server_error_percentage
 
         # Check if the error rate or average response time exceeds the threshold exceeds the threshold
-        if (error_percentage < ERROR_THRESHOLD) or (request_logs['process_time_ms'].mean() < RESPONSE_TIME_THRESHOLD):
+        if (error_percentage < ERROR_THRESHOLD) and (request_logs['process_time_ms'].mean() < RESPONSE_TIME_THRESHOLD):
             return
 
         # Group by URL and service name
         url_error_table = request_logs.groupby(['path', 'app_name']).agg(
+            total_requests=('status_code', 'count'),
             errors_4xx=('status_code', lambda x: ((x >= 400) & (x < 500)).sum() if not x.empty else 0),
             errors_5xx=('status_code', lambda x: (x >= 500).sum() if not x.empty else 0)
         ).reset_index()
@@ -119,10 +133,10 @@ def check_error_rates_and_alert():
             subject= f"Warning! Error Occurred in {email_data['start_time']} - {email_data['end_time']}",
             body=html_message,
             from_email=EMAIL_HOST_USER,
-            to=['ipcproject10@gmail.com'],
+            to=RECIPIENTS,
         )
         email.content_subtype = "html"  # Set the email content type to HTML
         email.send()
-        logger.info(f"Email sent successfully")
+        logger.info(f"✅ Email sent successfully")
     else:
         logger.warning(f"No request logs found from {start_date} to {end_date}.")
