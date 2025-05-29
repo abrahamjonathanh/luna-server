@@ -204,6 +204,9 @@ class UserView(ViewSet):
 
         try:
             user = User.objects.get(email=email)
+
+            if not user.is_active:
+                raise ValidationException("User account is inactive. Please contact administrator.")
             # Here you would send an email with a password reset link
             token = PasswordResetTokenGenerator().make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))

@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from api.models import Configuration
+from luna.settings import POSTGRES_SCHEMA
 
 class Command(BaseCommand):
     help = "Seed default Configuration data"
@@ -12,7 +13,8 @@ class Command(BaseCommand):
             ("DEFAULT_DATE_RANGE", "7D"),
             ("ERROR_RATE_THRESHOLD", "5"),
             ("ERROR_THRESHOLD", "25"),
-            ("RESPONSE_TIME_THRESHOLD", "10000"),
+            ("RESPONSE_TIME_THRESHOLD", "10"),
+            ("APPLICATIONS", f"['{POSTGRES_SCHEMA}']")
         ]
 
         # Store it in db

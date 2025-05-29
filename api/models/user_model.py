@@ -11,6 +11,7 @@ class User(AbstractBaseUser):
     is_active = models.BooleanField('is_active', default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_login = models.DateTimeField('last login', null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
     USERNAME_FIELD = 'username'

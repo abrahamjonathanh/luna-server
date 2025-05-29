@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from request_log.exceptions.api_exception import ValidationException
 from template.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-
+import time
 class RequestLogView(ViewSet):
     authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
@@ -27,17 +27,15 @@ class RequestLogView(ViewSet):
         Get all request logs from the database.
         """
         # Define columns for ADMIN and non-ADMIN users
-        admin_cols = [
-            "id", "path", "body", "headers", "method", "ip_address", "user_agent",
-            "city", "country_name", "country_code", "process_time_ms",
-            "status_code", "error_message", "created_at"
-        ]
         guest_cols = [
             "id", "path", "method", "country_name", "country_code", "process_time_ms",
             "status_code", "error_message", "created_at"
         ]
-        print(f'role: {role.id}')
-        is_admin = role.id == 'ADMIN'
+        admin_cols = guest_cols + [
+            "body", "headers", "ip_address", "user_agent", "city"
+        ]
+
+        is_admin = role == 'ADMIN'
         query_cols = ", ".join(admin_cols if is_admin else guest_cols)
         queries = []
 
@@ -186,7 +184,7 @@ class RequestLogView(ViewSet):
             ],
             'response_time_series': [
                 {
-                    'name': 'Response Time (ms)',
+                    'name': 'Response Time (s)',
                     'data': response_series.to_list()
                 }
             ]
@@ -539,7 +537,7 @@ class RequestLogView(ViewSet):
                 ],
                 'response_time_series': [
                     {
-                        'name': 'Response Time (ms)',
+                        'name': 'Response Time (s)',
                         'data': response_time_chart.values
                     }
                 ]
@@ -595,7 +593,7 @@ class RequestLogView(ViewSet):
         request_method = request.data.get('request_method', None)
 
         
-        request_logs = self.get_all_requestlogs(role=request.user.role, start_date=start_date, end_date=end_date, application_name=application_name, status_code=status_code, request_method=request_method)
+        request_logs = self.get_all_requestlogs(role=request.user.role.id, start_date=start_date, end_date=end_date, application_name=application_name, status_code=status_code, request_method=request_method)
 
         success_requests = request_logs[request_logs['status_code'] < 400]
         client_error_requests = request_logs[(request_logs['status_code'] >= 400) & (request_logs['status_code'] < 500)]
@@ -718,7 +716,7 @@ class RequestLogView(ViewSet):
                 ],
                 'response_time_series': [
                     {
-                        'name': 'Response Time (ms)',
+                        'name': 'Response Time (s)',
                         'data': response_time_chart.values
                     }
                 ]
@@ -762,7 +760,7 @@ class RequestLogView(ViewSet):
 
         # ========== Get All Request Logs ==========
         request_logs = self.get_all_requestlogs(
-            role=request.user.role,
+            role=request.user.role.id,
             start_date=start_date, 
             end_date=end_date, 
             application_name=application_name, 
@@ -848,7 +846,7 @@ class RequestLogView(ViewSet):
 
         path = request.data.get('path', None)
 
-        request_logs = self.get_all_requestlogs(role=request.user.role, start_date=start_date, end_date=end_date, 
+        request_logs = self.get_all_requestlogs(role=request.user.role.id, start_date=start_date, end_date=end_date, 
                                                 application_name=application_name, status_code=status_code, 
                                                 request_method=request_method, path=path)
         
@@ -861,7 +859,7 @@ class RequestLogView(ViewSet):
                 },
                 'data_table': []
             }, status=HTTP_200_OK)
-            
+        time.sleep(2)
         return Response({
             'filters': {
                 'start_date': start_date.isoformat(),
@@ -886,7 +884,7 @@ class RequestLogView(ViewSet):
         application_name = request.data.get('application_name', None)
         request_method = request.data.get('request_method', None)
 
-        request_logs = self.get_all_requestlogs(role=request.user.role, start_date=start_date, end_date=end_date, application_name=application_name, status_code=status_code, request_method=request_method)
+        request_logs = self.get_all_requestlogs(role=request.user.role.id, start_date=start_date, end_date=end_date, application_name=application_name, status_code=status_code, request_method=request_method)
         
         # ========== Grouping Data ==========
         # Group by unique status_code and count the number of occurrences

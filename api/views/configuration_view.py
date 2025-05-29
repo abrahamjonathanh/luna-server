@@ -1,15 +1,16 @@
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 from rest_framework.exceptions import APIException
+from rest_framework.permissions import IsAuthenticated
+from template.redis_client import redis_instance
+from template.authentication import TokenAuthentication
 
 from api.models.configuration_model import Configuration
+from api.models.application_model import Application
 from api.serializers.configuration_serializer import ConfigurationSerializer
-from template.redis_client import redis_instance
-import ast
-from template.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
 from django_celery_beat.models import PeriodicTask, IntervalSchedule
 
+import ast
 
 class ConfigurationView(ViewSet):
     authentication_classes = [TokenAuthentication]
@@ -22,7 +23,8 @@ class ConfigurationView(ViewSet):
                         'ERROR_RATE_THRESHOLD',
                         'RESPONSE_TIME_THRESHOLD',
                         'SEND_EMAIL_EVERY',
-                        'RECIPIENTS'
+                        'RECIPIENTS',
+                        'APPLICATIONS'
                         ]
         
         try:
@@ -44,20 +46,21 @@ class ConfigurationView(ViewSet):
                 else:
                     raise APIException("No data found in PostgreSQL.")
                 
-            if 'RECIPIENTS' in redis_data:
-                recipients_raw = redis_data['RECIPIENTS']
-                if isinstance(recipients_raw, bytes):  # Redis returns bytes
-                    recipients_raw = recipients_raw.decode()
+            for key in ['RECIPIENTS', 'APPLICATIONS']:
+                if key in redis_data:
+                    raw_value = redis_data[key]
+                    if isinstance(raw_value, bytes):  # Redis returns bytes
+                        raw_value = raw_value.decode()
 
-                try:
-                    # Safely parse the stringified list
-                    recipients_list = ast.literal_eval(recipients_raw)
-                    if isinstance(recipients_list, list):
-                        redis_data['RECIPIENTS'] = recipients_list
-                    else:
-                        redis_data['RECIPIENTS'] = []
-                except (ValueError, SyntaxError):
-                    redis_data['RECIPIENTS'] = []
+                    try:
+                        # Safely parse the stringified list
+                        parsed_list = ast.literal_eval(raw_value)
+                        if isinstance(parsed_list, list):
+                            redis_data[key] = parsed_list
+                        else:
+                            redis_data[key] = []
+                    except (ValueError, SyntaxError):
+                        redis_data[key] = []
         except Exception:
             print("Redis connection failed. Fetching data from PostgreSQL.")
             # If Redis connection fails, fetch data from PostgreSQL
@@ -100,6 +103,30 @@ class ConfigurationView(ViewSet):
                         'kwargs': '{}',
                     },
                 )
+
+            if name.upper() == "APPLICATIONS":
+                # Convert the value to a list if it's a string representation of a list
+                if isinstance(value, str):
+                    try:
+                        value = ast.literal_eval(value)
+                    except (ValueError, SyntaxError):
+                        value = []
+
+                # Remove applications from the database that are not in the new value list
+                existing_apps = set(Application.objects.values_list('app', flat=True))
+                new_apps = set(value)
+                apps_to_remove = existing_apps - new_apps
+                if apps_to_remove:
+                    Application.objects.filter(app__in=apps_to_remove).delete()
+                # Store each application into the Application model
+                for app_data in value:
+                    # Assuming app_data is a dict with required fields for Application
+                    Application.objects.update_or_create(
+                        app=app_data,
+                        defaults={
+                            "app": app_data
+                        }
+                    )
 
             try:
                 # Check if Redis is running properly
