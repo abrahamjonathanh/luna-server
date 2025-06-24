@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from api.models import Configuration
+from api.models import Configuration, Application
 from luna.settings import POSTGRES_SCHEMA
 
 class Command(BaseCommand):
@@ -21,8 +21,10 @@ class Command(BaseCommand):
         for key, value in data:
             try:
                 Configuration.objects.create(key=key, value=value)
+                if key == "APPLICATIONS":
+                    Application.objects.create(name=value)
             except Exception as e:
-                self.stdout.write(self.style.WARNING(f"Configuration {key} already exists."))
+                self.stdout.write(self.style.WARNING(f"Configuration {key} already exists. Exception: {e}"))
                 continue
 
         self.stdout.write(self.style.SUCCESS("Default Configuration data seeded successfully."))

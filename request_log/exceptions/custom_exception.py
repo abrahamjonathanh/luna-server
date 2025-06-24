@@ -2,7 +2,7 @@ import traceback
 
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
-from template.utils.threading import get_current_request_log
+from request_log.utils.threading import get_current_request_log
 
 def custom_exception_handler(exc, context):
     # Call the default exception handler to get the standard error response

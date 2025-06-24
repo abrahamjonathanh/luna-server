@@ -34,7 +34,7 @@ class RequestLogView(ViewSet):
         admin_cols = guest_cols + [
             "body", "headers", "ip_address", "user_agent", "city"
         ]
-
+        print('role:', role)
         is_admin = role == 'ADMIN'
         query_cols = ", ".join(admin_cols if is_admin else guest_cols)
         queries = []

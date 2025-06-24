@@ -1,6 +1,6 @@
 from django.contrib.gis.geoip2 import GeoIP2
 from request_log.models.request_log_model import RequestLog
-from template.utils.threading import set_current_request_log
+from request_log.utils.threading import set_current_request_log
 
 import time
 import json

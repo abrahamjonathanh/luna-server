@@ -1,116 +1,218 @@
 # 🌙 Luna Server
 
-**Luna Server** is a monitoring API tool built using **Django REST Framework**, designed for projects that use **PostgreSQL with multiple schemas**. It includes background task support via **Celery** and **Redis**, and can send notifications via **Gmail SMTP** (limited to 200 emails/day).
+Luna Server is the backend service for the **[Luna Client](https://github.com/abrahamjonathanh/luna-client)** monitoring application. It is built using Django Rest Framework and designed specifically to support **multi-schema PostgreSQL** projects.
+
+> **Note**: Luna Server is intended for use with **PostgreSQL only** projects.
 
 ---
 
-## 🔍 Description
+## ⚙️ Tech Stack
 
-Luna Server is ideal for backend systems that use a shared PostgreSQL database with different schemas. Each schema can be monitored independently, allowing flexible integration across multiple applications or tenants. Email notifications can be configured for alerts, system status, or any periodic update using Celery and Gmail SMTP.
+- **Django Rest Framework** – RESTful API backend
+- **PostgreSQL** – Relational database with multi-schema support
+- **Redis** – Caching and message broker
+- **Celery** – Background task queue
+- **Gmail SMTP** – Email service (up to 200 emails/day)
+- **Docker (optional)** – Containerized deployment
+
+---
+
+## ✅ Prerequisites
+
+Make sure the following dependencies are installed before continuing:
+
+- **Python**: 3.9+
+- **PostgreSQL**: 14+
+- **Redis**: 7.0+
+- **Gmail SMTP**: [Gmail SMTP Support Guide](https://support.google.com/mail/answer/185833)
+
+🔐 Generate a Gmail app password at:  
+[https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
 
 ---
 
-## 🛠️ Technology Stack
+## 📦 Installation
 
-- **Django REST Framework** – RESTful API backend
-- **PostgreSQL** – with multi-schema support
-- **Redis** – message broker for Celery
-- **Celery** – background task processing
-- **Gmail SMTP** – for sending up to 200 emails/day (free Gmail limit)
+1. Clone the repository:
 
----
+   ```bash
+   git clone https://github.com/abrahamjonathanh/luna-server.git
+   ```
+
+2. Change directory:
+
+   ```bash
+   cd luna-server
+   ```
+
+3. Create the Database Schema
+   Make sure your PostgreSQL database is set up and accessible. Then create a schema named **`luna`**:
+   ```sql
+   CREATE SCHEMA luna;
+   ```
 
 ## 🚀 Getting Started
 
-### 1. Create the Database Schema
+### 🔹 Using Docker (Recommended)
 
-Make sure your PostgreSQL database is set up and accessible. Then create a schema named `luna`:
+1. Start Docker Desktop.
 
-```sql
-CREATE SCHEMA luna;
-```
+2. Set up environment variables:
+   Copy the `.env.example` file and customize it.
 
-### 2. Apply Migrations
+   ```bash
+   cp .env.example .env
+   ```
 
-Run Django migrations targeting the luna schema:
+3. Generate a `FERNET_KEY` here: https://fernetkeygen.com
 
-```cmd
-python manage.py migrate
-```
+4. Build and start the containers:
+   ```ps
+   docker-compose up -d --build
+   ```
 
-### 3. Register Applications
+### 🔸 Local Development (Without Docker)
 
-Manually add your application records to the `api_applications` table. These records should match the schema names you want to monitor.
+1. Set up virtual environment (if not using Docker):
+   ```ps
+   python -m venv venv
+   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+   ```
+2. Install dependencies:
+   ```ps
+   pip install -r requirements.txt
+   ```
+3. Set up environment variables:
 
-## 🔁 Running Redis (Recommended with Docker)
+   ```ps
+   cp .env.example .env
+   ```
 
-To run Redis using Docker (default port 6379):
+   Adjust values as needed
 
-```docker
-docker run -d --name redis -p 6379:6379 redis
-```
+4. Generate `FERNET_KEY` from: https://fernetkeygen.com
 
-## ⚙️ Running Celery
+5. Run migrations and seed data:
+   ```ps
+   python manage.py migrate
+   python manage.py seed_configuration
+   python manage.py seed_role
+   python manage.py setup_celery_beat
+   ```
+6. Start Celery Worker and Beat (follow the order):
+   ```ps
+   celery -A luna worker --pool=solo --loglevel=info
+   ```
+   ```ps
+   celery -A luna beat --loglevel=info
+   ```
+7. Start the development server:
+   ```ps
+   python manage.py runserver
+   ```
+   It will run in http://localhost:8000.
 
-Make sure Redis is running before starting Celery.
+---
 
-### Start the Celery Worker:
+## 👤 Creating an Admin User
+
+To create an admin user:
+
+1. Register a new user via the registration endpoint/page.
+
+2. Manually update the user record in the **PostgreSQL** database:
+
+   - Set `is_active` to `True`
+   - Set `role` to `ADMIN`
+
+   Tip: You can use `pgAdmin` or any SQL client to modify the user data directly.
+
+---
+
+## 🧾 Storing API Request Logs (For App You Want to Monitored)
+
+Luna Server includes a request logging module to help you track and audit all incoming API calls.
+
+### 🔧 Setup Instructions
+
+1. **Copy the Logging Modules**
+
+   Copy the following folders from this repository into the **root of your project**:
+
+- /request_log/
+- /geoip/
+
+### 📁 Example Project Structure
 
 ```bash
-celery -A luna worker --pool=solo --loglevel=info
+your_project/
+├── geoip/ # Copied
+│ └── ...
+├── request_log/ # Copied
+│ └── ...
+├── your_project/
+│ └── settings.py
+├── manage.py
+└── ...
 ```
 
-### Start Celery Beat:
+2. **Register the App in `settings.py`**
 
-```bash
-celery -A luna beat --loglevel=info
-```
+   Add `request_log` to your `INSTALLED_APPS`:
 
-These will handle scheduled tasks such as sending email notifications.
+   ```python
+   INSTALLED_APPS = [
+      ...
+      'request_log',  # Request Logging App
+   ]
+   ```
 
-## 🐳 Docker Installation
+3. **Set the Custom Exception Handler**
 
-Luna Server includes a `docker-compose.yml` for easy deployment.
+   Add the following to your `settings.py` under `REST_FRAMEWORK`:
 
-### To start the project:
+   ```python
+   REST_FRAMEWORK = {
+      'EXCEPTION_HANDLER': 'request_log.exceptions.custom_exception.custom_exception_handler',
+      ...
+   }
+   ```
 
-```bash
-docker-compose up --build
-```
+4. Add the Middleware
 
-This command will run:
+   Also in `settings.py`, add the logging middleware:
 
-- PostgreSQL with persistent volume
-- Redis server
-- Django application server
-- Celery worker
-- Celery beat for periodic tasks
+   ```python
+   MIDDLEWARE = [
+      ...
+      'request_log.middlewares.request_log_middleware.RequestLogMiddleware',
+   ]
+   ```
 
-### Configuration
+5. Add GEO IP
 
-Before running, ensure your .env file is set up with the required environment variables following .env.example
+   ```python
+   import os
 
-## 📦 Requirements (If Running Locally Without Docker)
+   GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
+   ```
 
-- Python 3.8+
-- PostgreSQL 13+
-- Redis
-- Virtualenv or Poetry for Python dependency management
+6. Run the Migration
 
-### 📬 Gmail SMTP Notes
+   After copying and configuring everything, run the following command to apply the request log model migrations:
 
-- Gmail SMTP is used to send notification emails.
-- A free Gmail account allows sending up to 200 emails/day.
-- Use an App Password if you have 2FA enabled on your Google account.
+   ```ps
+   python manage.py migrate request_log
+   ```
 
-## ✅ Project Status
+### 📍 What It Does
 
-Luna Server is production-ready and suitable for applications requiring multi-schema monitoring in a single PostgreSQL database.
+- Logs IP address, HTTP method, status code, execution time, and more.
 
-## 📄 License
+- Enriches log with geo-location info from IP (via geoip).
 
-This project is licensed under the MIT License.
+- Captures uncaught exceptions through DRF’s custom exception handler.
 
-## 👤 Author
+## 📫 Contact & Support
 
-Zhang Hua (2025)
+For issues or questions, feel free to open an issue or contribute via pull request.
